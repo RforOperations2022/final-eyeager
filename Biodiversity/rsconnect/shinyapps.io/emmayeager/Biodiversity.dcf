@@ -1,0 +1,13 @@
+name: Biodiversity
+title: Biodiversity
+username:
+account: emmayeager
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5786134
+bundleId: 5645659
+url: https://emmayeager.shinyapps.io/Biodiversity/
+when: 1646465765.14916
+lastSyncTime: 1646465765.14916
+asMultiple: FALSE
+asStatic: FALSE
