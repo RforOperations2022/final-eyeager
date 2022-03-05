@@ -39,7 +39,9 @@ ui <- navbarPage("Pittsburgh Biodiversity",
                                   checkboxInput(inputId = "heatmapSelect",
                                                 label = "Draw heatmap of all taxons and months?",
                                                 value = FALSE,
-                                                width = '100%')),
+                                                width = '100%'),
+                                  # Data download
+                                  downloadButton(outputId = "downloadData", label = "Download")),
                               mainPanel(
                                   # Using Shiny JS
                                   shinyjs::useShinyjs(),
@@ -116,7 +118,18 @@ server <- function(input, output) {
                        blur = 100)
     })
     
-    # output$table <- DT::renderDataTable(greenInfInputs()@data, options = list(scrollX = T))
+    # Render data table with taxon and month selected
+    output$table <- DT::renderDataTable(iNat.load, options = list(scrollX = T))
+    
+    # Download button
+    output$downloadData <- downloadHandler(
+        filename = function() {
+            paste("data-", Sys.Date(), ".csv", sep="")
+        },
+        content = function(filename) {
+            write.csv(iNat.load, filename)
+        }
+    )
     # # Enable button once a marker has been selected
     # observeEvent(input$leaflet_marker_click$id, {
     #     enable("delete")
