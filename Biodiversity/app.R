@@ -8,6 +8,8 @@ library(shinyjs)
 library(rgeos)
 library(DT)
 library(lubridate)
+library(tidyverse)
+library(plotly)
 
 # Load iNaturalist Data
 # Data Source: https://www.inaturalist.org/observations?d1=2021-03-01&d2=2022-03-01&iconic_taxa=Fungi&order_by=observed_on&place_id=124749&subview=map
@@ -18,7 +20,7 @@ iNat.load$month <- month(ymd(iNat.load$observed_on))
 # Define UI for application
 ui <- navbarPage("Pittsburgh Biodiversity",
                  theme = shinytheme("spacelab"),
-                 tabPanel("Map",
+                 tabPanel("Viz",
                           sidebarLayout(
                               sidebarPanel(
                                   # Select Taxon Name
@@ -26,8 +28,8 @@ ui <- navbarPage("Pittsburgh Biodiversity",
                                               label = "Select taxon for markers",
                                               choices = unique(iNat.load['iconic_taxon_name']),
                                               selected = c("Fungi"),
-                                              selectize = F,
-                                              multiple = F),
+                                              selectize = T,
+                                              multiple = T),
                                   # Select month for markers
                                   sliderInput(inputId = "monthSelect",
                                               label = "Select month for markers",
@@ -49,7 +51,10 @@ ui <- navbarPage("Pittsburgh Biodiversity",
                                   tags$style(type = "text/css", ".leaflet {height: calc(100vh - 90px) !important;}
                                          body {background-color: #8DA68A;}"),
                                   # Map Output
-                                  leafletOutput("leaflet")
+                                  tabsetPanel(type = "tabs",
+                                              tabPanel("Map", leafletOutput("leaflet")),
+                                              tabPanel("Plots", plotOutput("species"), plotOutput("users"))
+                                              )
                               )
                           )
                  ),
@@ -92,6 +97,25 @@ server <- function(input, output) {
         }
     })
     
+    # Plot data reactive
+    plot_data <- reactive({
+        taxonInput() %>%
+        group_by(iconic_taxon_name,month) %>%
+        summarise(n_species = n_distinct(scientific_name),
+                  n_users = n_distinct(user_login),
+                  n_obs = n()) 
+    })
+    
+    # Leaderboard data
+    leaderboard_data <- reactive({
+        monthInput() %>%
+            group_by(user_login) %>%
+            summarise(n_obs = n()) %>%
+            arrange(n_obs) %>%
+            top_n(10) %>%
+            mutate(user_login = factor(user_login, levels = user_login))
+    })
+    
     # Replace layer with data filtered by taxon name and month
     observe({
         markerData <- monthInput()
@@ -130,35 +154,28 @@ server <- function(input, output) {
             write.csv(iNat.load, filename)
         }
     )
-    # # Enable button once a marker has been selected
-    # observeEvent(input$leaflet_marker_click$id, {
-    #     enable("delete")
-    # })
-    # # Add layerID to list of removed projects
-    # observeEvent(input$delete, {
-    #     enable("restore")
-    #     isolate({
-    #         values$removed <- c(values$removed, input$leaflet_marker_click$id)
-    #     })
-    # })
-    # # Reset removed Projects
-    # observeEvent(input$restore, {
-    #     values$removed <- c()
-    #     disable("restore")
-    # })
-    # # Subset to data Only on screen
-    # onScreen <- reactive({
-    #     req(input$leaflet_bounds)
-    #     bounds <- input$leaflet_bounds
-    #     latRng <- range(bounds$north, bounds$south)
-    #     lngRng <- range(bounds$east, bounds$west)
-    #     
-    #     subset(greenInfInputs()@data, latitude >= latRng[1] & latitude <= latRng[2] & longitude >= lngRng[1] & longitude <= lngRng[2])
-    # })
-    # # Print Projects
-    # output$text <- renderText({
-    #     paste("You are viewing", nrow(onScreen()), "projects")
-    # })
+    
+    output$species <- renderPlot({
+        ggplot(plot_data(), 
+               aes(x=month,y=n_species,group=iconic_taxon_name,color=iconic_taxon_name)) + 
+            geom_line() +
+            geom_point() +
+            ggtitle('Number of Species by Taxon') + 
+            xlab('Month') +
+            ylab('Number of species') + 
+            theme(legend.position = "left")
+    })
+    
+    output$users <- renderPlot({
+        ggplot(leaderboard_data(), aes(x=user_login,y=n_obs)) + geom_point() + 
+            coord_flip() + 
+            geom_segment(aes(x=user_login, xend=user_login, y=0, yend=n_obs)) +
+            ggtitle('Monthly Leaderboard') +
+            ylab('Number of uploads') +
+            xlab('Username')
+    })
+    
+    
 }
 
 # Run the application 
